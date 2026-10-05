@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<title>复扫雷 Complexweeper · Web</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="layout">
+  <!-- 信息面板：标题 / 计数器 / 配置 / 旗帜条 / 状态 -->
+  <aside class="app info-panel">
+    <!-- 标题条 -->
+    <div class="titlebar">
+      <h1>复扫雷 Complexweeper</h1>
+      <span class="sub">扫雷，但雷是复数 · Web 复刻版</span>
+    </div>
+
+    <!-- 控制行：计数器 / 脸 / 计时器 -->
+    <div class="controlbar" id="controlbar">
+      <div class="led-group" id="mineLeds">
+        <!-- JS 动态生成 4 个 LED（+1 / -1 / +i / -i 剩余数） -->
+      </div>
+      <button class="face" id="face" title="新开一局"><span id="faceIcon">🙂</span></button>
+      <div class="led-group">
+        <div class="led">
+          <div class="digits" id="timer">000</div>
+          <div class="cap">计时</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 配置行 -->
+    <div class="configbar">
+      <label>难度
+        <select id="preset">
+          <option value="0">初级 9×9 · 10 雷</option>
+          <option value="1">中级 16×16 · 40 雷</option>
+          <option value="2">高级 22×22 · 99 雷</option>
+        </select>
+      </label>
+      <label>种子
+        <input type="text" id="seed" inputmode="numeric" placeholder="随机">
+      </label>
+      <button id="newGame">新开一局</button>
+      <button id="randomSeed">随机种子</button>
+      <span class="seed-info" id="seedInfo"></span>
+    <span class="zoom-group" id="zoomGroup">
+      <button id="zoomOut" title="缩小棋盘（键盘 -）" aria-label="缩小">−</button>
+      <span id="zoomLevel" class="zoom-level">自适应</span>
+      <button id="zoomIn" title="放大棋盘（键盘 + 或 =）" aria-label="放大">+</button>
+      <button id="zoomReset" title="恢复自适应宽度" aria-label="自适应">⟳</button>
+    </span>
+    </div>
+
+    <!-- 旗帜选择条：右键循环之外，也可直接选类型用左键插旗 -->
+    <div class="flagbar" id="flagbar">
+      <span>插旗模式：</span>
+      <button class="flagbtn active" data-flag="0" title="左键揭开（不插旗）">⛏</button>
+      <button class="flagbtn" data-flag="1" title="左键插 +1 旗"><span class="swatch" style="background:#d7263d"></span>+1</button>
+      <button class="flagbtn" data-flag="2" title="左键插 -1 旗"><span class="swatch" style="background:#1f4ef5"></span>−1</button>
+      <button class="flagbtn" data-flag="3" title="左键插 +i 旗"><span class="swatch" style="background:#1f9e3a"></span>+i</button>
+      <button class="flagbtn" data-flag="4" title="左键插 -i 旗"><span class="swatch" style="background:#e08e00"></span>−i</button>
+      <span style="margin-left:8px;color:#666">（右键单元格仍可循环 4 种旗）</span>
+    </div>
+
+    <!-- 状态行 -->
+    <div class="statusbar" id="status">点击任意格子开局（首点击必为安全区）。</div>
+  </aside>
+
+  <!-- 雷盘面板：含全屏按钮 -->
+  <main class="board-panel">
+    <button class="fullscreen-btn" id="fullscreenBtn" title="雷盘全屏（Esc 退出）" aria-label="全屏">⛶</button>
+    <!-- 棋盘视口：恒为正方形，宽度最大；放大后可拖动平移；全屏时为屏幕比例 -->
+    <div class="board-wrap">
+      <div class="board-viewport" id="boardViewport">
+        <div class="board" id="board"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 规则说明 -->
+  <section class="help">
+    <h2>规则速览</h2>
+    <p>四种雷：<code>+1</code>（正实）、<code>−1</code>（负实）、<code>+i</code>（正虚）、<code>−i</code>（负虚）。格子上的数是它周围所有雷之和的<strong>模长</strong> <code>|Σ|</code>。</p>
+    <p>正负雷数量相等会互相抵消，这种 1 正 1 负的正负对称为“抵消对”。<strong>0 与空白不是一回事</strong>：空白格表示周围完全没有雷（会连片展开）；显示 <code>0</code> 表示周围完全为抵消对（有雷，但不展开）。</p>
+    <h3>操作</h3>
+    <ul>
+      <li>左键：揭开格子（在已揭开的数字格上左键 = 双击展开）</li>
+      <li>右键：循环插旗 —— 空 → +1 → −1 → +i → −i → 空</li>
+      <li>中键：在数字格上展开（双击展开的另一种触发）</li>
+      <li>顶部旗帜条：选定类型后，左键直接插该型旗（⛏ 为揭开模式）</li>
+      <li>移动端：长按 = 插旗；雷盘大于视口时可拖动平移</li>
+    </ul>
+    <h3>双击展开判据</h3>
+    <p>需同时满足三项才允许展开周围未插旗格：<strong>①旗帜全部插在真实雷格上</strong>（位置正确）；<strong>②旗帜数量等于真实雷数</strong>；<strong>③实/虚旗比例符合真实比例或其倒数</strong>。任一不满足都不展开、不踩雷，可借此<strong>试探</strong>周围是否有抵消对，或检验插旗是否正确。</p>
+    <p>胜利条件是<strong>翻开所有非雷格子</strong>，而不是插对全部旗帜。</p>
+    <div class="legend">
+      <span><span class="flag f1">+1</span>正实雷</span>
+      <span><span class="flag f2">−1</span>负实雷</span>
+      <span><span class="flag f3">+i</span>正虚雷</span>
+      <span><span class="flag f4">−i</span>负虚雷</span>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    本网页为复扫雷 Complexweeper 的非官方 Web 复刻，遵循 GPL-3.0。<br>
+    原作（Zig + Win32 原生 Windows 程序）作者：青月晓
+    <a href="https://github.com/Yueqing-Chen/complexweeper-A-minesweeper-game" target="_blank" rel="noopener">GitHub 仓库 ↗</a><br>
+    扫雷原始图像素材版权归 Microsoft 所有；本网页未使用该素材，全部图形为 CSS 重绘。
+  </div>
+</div>
+
+<!-- 全屏模式悬浮条：进入全屏时由 JS 注入内容 -->
+<div class="fs-toolbar" id="fsToolbar" hidden></div>
+
+<script src="game.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
