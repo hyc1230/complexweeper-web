@@ -137,19 +137,14 @@
     viewportEl.style.setProperty("--vp-w", Vw + "px");
     viewportEl.style.setProperty("--vp-h", Vh + "px");
     const B = boardPx(cell);
-    if (B <= Vw && B <= Vh) {
-      // 雷盘小于视口（两边都小于） → 居中
-      panX = (Vw - B) / 2;
-      panY = (Vh - B) / 2;
-      viewportEl.classList.add("no-pan");
-    } else {
-      // 雷盘至少一边大于视口 → 在可拖动范围内 clamp
-      const loX = Vw - B;
-      const loY = Vh - B;
-      panX = Math.max(loX, Math.min(0, panX));
-      panY = Math.max(loY, Math.min(0, panY));
-      viewportEl.classList.remove("no-pan");
-    }
+    // X、Y 维度独立判断：每边雷盘小于视口就居中，大于视口才在可拖动范围内 clamp
+    let noPanX = B <= Vw;
+    let noPanY = B <= Vh;
+    if (noPanX) panX = (Vw - B) / 2;
+    else panX = Math.max(Vw - B, Math.min(0, panX));
+    if (noPanY) panY = (Vh - B) / 2;
+    else panY = Math.max(Vh - B, Math.min(0, panY));
+    viewportEl.classList.toggle("no-pan", noPanX && noPanY);
     viewportEl.style.setProperty("--pan-x", panX + "px");
     viewportEl.style.setProperty("--pan-y", panY + "px");
     updateZoomLabel();
