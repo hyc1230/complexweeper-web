@@ -366,6 +366,9 @@
       if (g.msg === Msg.flag_misplaced) {
         txt = "展开中止：有旗帜插在非雷格上（位置不对，不踩雷，可继续调整）。";
         cls = "bad";
+      } else if (g.msg === Msg.modulus_fail) {
+        txt = "判据不通过：旗帜复数模长 ≠ 真实雷模长（不踩雷，可继续调整）。";
+        cls = "bad";
       } else if (g.msg === Msg.judge_fail) {
         txt = "判据不通过：旗数 ≠ 真实雷数，或实/虚比例不符（不踩雷，可继续试探）。";
         cls = "bad";

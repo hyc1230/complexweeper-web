@@ -18,7 +18,7 @@ const PRESETS = [
 
 // 状态行文字枚举（逻辑层只给枚举，文案在界面层）
 const Msg = {
-  none: 0, started: 1, judge_fail: 2, expand_ok: 3, win: 4, lose: 5, flag_misplaced: 6,
+  none: 0, started: 1, judge_fail: 2, expand_ok: 3, win: 4, lose: 5, flag_misplaced: 6, modulus_fail: 7,
 };
 
 /// mulberry32：与原作完全一致，同种子同棋盘
@@ -324,7 +324,24 @@ class Game {
     return true;
   }
 
-  // 双击展开：位置 + 数量 + 比例 判据全通过才翻开周围未插旗格。
+  // 模长校验：把邻域雷/旗当作复数（+1=+1, -1=-1, +i=+i, -i=-i），
+  // 要求旗帜复数模长 = 真实雷复数模长。
+  // 例：真实雷 {+1,+1} 模长 2，若错插成 {+1,-1} 模长 0，则模长不符 → 拒绝展开。
+  flagsModulusMatch(cell) {
+    const buf = new Array(8);
+    const k = this.nbrs(cell, buf);
+    let realA = 0, realB = 0; // 真实雷复数实部/虚部
+    let flagA = 0, flagB = 0; // 旗帜复数实部/虚部
+    for (let i = 0; i < k; i++) {
+      const j = buf[i];
+      const m = this.mine[j], f = this.flag[j];
+      if (m === 1) realA++; else if (m === 2) realA--; else if (m === 3) realB++; else if (m === 4) realB--;
+      if (f === 1) flagA++; else if (f === 2) flagA--; else if (f === 3) flagB++; else if (f === 4) flagB--;
+    }
+    return (realA * realA + realB * realB) === (flagA * flagA + flagB * flagB);
+  }
+
+  // 双击展开：位置 + 模长 + 数量 + 比例 判据全通过才翻开周围未插旗格。
   // 判据全通过时所有真实雷格都已被正确插旗，uns 中无雷，安全展开。
   tryExpand(cell) {
     if (this.over || this.open[cell] === 0 || this.mine[cell] !== 0) return;
@@ -337,6 +354,7 @@ class Game {
     }
     if (uns.length === 0) return;
     if (!this.flagsOnMines(cell)) { this.setMsg(Msg.flag_misplaced); return; }
+    if (!this.flagsModulusMatch(cell)) { this.setMsg(Msg.modulus_fail); return; }
     if (!this.matchComboTruth(cell)) { this.setMsg(Msg.judge_fail); return; }
     this.cascadeOpen(uns);
     this.moves++;
