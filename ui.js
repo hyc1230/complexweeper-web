@@ -478,18 +478,22 @@
       pointer.moved = true;
       if (pointer.longTimer) { clearTimeout(pointer.longTimer); pointer.longTimer = null; }
     }
-    // 雷盘任一边大于视口时，移动即平移
+    // 雷盘任一边大于视口时，移动即平移（X、Y 维度独立判断）
     const cell = curCell();
     const B = boardPx(cell);
-    if ((B > Vw || B > Vh) && pointer.moved) {
+    const canPanX = B > Vw;
+    const canPanY = B > Vh;
+    if ((canPanX || canPanY) && pointer.moved) {
       pointer.panning = true;
       viewportEl.classList.add("panning");
-      panX += dx;
-      panY += dy;
-      const loX = Vw - B;
-      const loY = Vh - B;
-      panX = Math.max(loX, Math.min(0, panX));
-      panY = Math.max(loY, Math.min(0, panY));
+      if (canPanX) {
+        panX += dx;
+        panX = Math.max(Vw - B, Math.min(0, panX));
+      }
+      if (canPanY) {
+        panY += dy;
+        panY = Math.max(Vh - B, Math.min(0, panY));
+      }
       viewportEl.style.setProperty("--pan-x", panX + "px");
       viewportEl.style.setProperty("--pan-y", panY + "px");
     }
