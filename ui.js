@@ -579,12 +579,6 @@
     const dy = t1.clientY - t2.clientY;
     return Math.hypot(dx, dy);
   }
-  function pinchMid(t1, t2, rect) {
-    return {
-      x: (t1.clientX + t2.clientX) / 2 - rect.left,
-      y: (t1.clientY + t2.clientY) / 2 - rect.top,
-    };
-  }
 
   viewportEl.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2) {
@@ -618,16 +612,14 @@
   }, { passive: false });
   viewportEl.addEventListener("touchmove", (e) => {
     if (pinch && e.touches.length === 2) {
-      // 双指缩放：按距离比值缩放每格像素，围绕双指中点
-      const rect = viewportEl.getBoundingClientRect();
+      // 双指缩放：按距离比值缩放每格像素，固定视口中心
       const d = pinchDist(e.touches[0], e.touches[1]);
       if (pinch.dist > 0 && d > 0) {
         const ratio = d / pinch.dist;
         const targetCell = Math.round(pinch.cell * ratio);
         const delta = targetCell - curCell();
         if (delta !== 0) {
-          const m = pinchMid(e.touches[0], e.touches[1], rect);
-          zoomBy(delta, m.x, m.y);
+          zoomBy(delta);
           // 更新基准，避免累积误差
           pinch.dist = d;
           pinch.cell = curCell();
