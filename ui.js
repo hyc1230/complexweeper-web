@@ -173,7 +173,9 @@
   }
 
   // 缩放：保持视口中心在雷盘上的位置不变
-  function zoomBy(delta) {
+  // delta 为每格像素增量；可选 anchorX/Y 为视口坐标，缩放围绕该点
+  // （省略时围绕视口中心，与滚轮缩放保持一致）
+  function zoomBy(delta, anchorX, anchorY) {
     const sz = computeViewport();
     Vw = sz.w; Vh = sz.h;
     const oldCell = curCell();
@@ -182,15 +184,20 @@
     if (next < MIN_CELL) next = MIN_CELL;
     if (next > MAX_CELL) next = MAX_CELL;
     if (next === oldCell && cellSize !== null) return;
-    // 视口中心在雷盘上的坐标（px，相对雷盘左上）
-    const cx = Vw / 2 - panX;
-    const cy = Vh / 2 - panY;
+    // 锚点在雷盘上的坐标（px，相对雷盘左上）
+    const ax = (anchorX !== undefined) ? (anchorX - panX) : (Vw / 2 - panX);
+    const ay = (anchorY !== undefined) ? (anchorY - panY) : (Vh / 2 - panY);
     const ratio = next / oldCell;
-    const newCx = cx * ratio;
-    const newCy = cy * ratio;
+    const newAx = ax * ratio;
+    const newAy = ay * ratio;
     cellSize = next;
-    panX = Vw / 2 - newCx;
-    panY = Vh / 2 - newCy;
+    if (anchorX !== undefined) {
+      panX = anchorX - newAx;
+      panY = anchorY - newAy;
+    } else {
+      panX = Vw / 2 - newAx;
+      panY = Vh / 2 - newAy;
+    }
     applyTransform();
   }
 
@@ -564,8 +571,36 @@
   });
 
   // ---- 触摸 ----
+  // 双指缩放状态：pinch.dist 为上次两指间距，pinch.cell 为对应每格像素
+  let pinch = null;
+
+  function pinchDist(t1, t2) {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.hypot(dx, dy);
+  }
+  function pinchMid(t1, t2, rect) {
+    return {
+      x: (t1.clientX + t2.clientX) / 2 - rect.left,
+      y: (t1.clientY + t2.clientY) / 2 - rect.top,
+    };
+  }
+
   viewportEl.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      // 进入双指缩放：取消单指手势（长按/平移）
+      if (pointer && pointer.longTimer) { clearTimeout(pointer.longTimer); pointer.longTimer = null; }
+      pointer = null;
+      viewportEl.classList.remove("panning");
+      const rect = viewportEl.getBoundingClientRect();
+      const d = pinchDist(e.touches[0], e.touches[1]);
+      pinch = { dist: d, cell: curCell() };
+      e.preventDefault();
+      return;
+    }
     if (e.touches.length !== 1) return;
+    // 双指刚结束时残留的一指，忽略（等所有指头抬起再重新开始单指）
+    if (pinch) return;
     const t = e.touches[0];
     onPointerDown(t.clientX, t.clientY, 0);
     if (!pointer) return;
@@ -580,8 +615,27 @@
         render();
       }, LONG_PRESS_MS);
     }
-  }, { passive: true });
+  }, { passive: false });
   viewportEl.addEventListener("touchmove", (e) => {
+    if (pinch && e.touches.length === 2) {
+      // 双指缩放：按距离比值缩放每格像素，围绕双指中点
+      const rect = viewportEl.getBoundingClientRect();
+      const d = pinchDist(e.touches[0], e.touches[1]);
+      if (pinch.dist > 0 && d > 0) {
+        const ratio = d / pinch.dist;
+        const targetCell = Math.round(pinch.cell * ratio);
+        const delta = targetCell - curCell();
+        if (delta !== 0) {
+          const m = pinchMid(e.touches[0], e.touches[1], rect);
+          zoomBy(delta, m.x, m.y);
+          // 更新基准，避免累积误差
+          pinch.dist = d;
+          pinch.cell = curCell();
+        }
+      }
+      e.preventDefault();
+      return;
+    }
     if (!pointer || e.touches.length !== 1) return;
     const t = e.touches[0];
     onPointerMove(t.clientX, t.clientY);
@@ -589,6 +643,11 @@
     if (pointer.panning) e.preventDefault();
   }, { passive: false });
   viewportEl.addEventListener("touchend", (e) => {
+    if (pinch) {
+      // 双指期间或刚结束：等所有指头抬起才清掉 pinch
+      if (e.touches.length === 0) pinch = null;
+      return;
+    }
     if (!pointer) return;
     const consumed = onPointerUp();
     if (consumed) suppressClick = true;
@@ -597,6 +656,7 @@
   viewportEl.addEventListener("touchcancel", () => {
     if (pointer && pointer.longTimer) { clearTimeout(pointer.longTimer); pointer.longTimer = null; }
     pointer = null;
+    pinch = null;
     viewportEl.classList.remove("panning");
   });
 
